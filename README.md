@@ -16,6 +16,31 @@ A PyQt-based GUI application for Linux that helps you browse, search, and open y
   - VS Code
   - Windsurf
 
+## Screenshots
+
+![Main application window](screenshots/1.png)
+*Main application window showing repository list and search functionality*
+
+![Opening a repository](screenshots/2.png)
+*Selecting and opening a repository in your preferred IDE*
+
+![Managing repository paths](screenshots/3.png)
+*Adding a new repository path to track*
+
+![Settings saved](screenshots/4.png)
+*Repository paths are saved in your configuration file*
+
+## Purpose
+
+Repository Opener is designed to provide quick access to your Git repositories and open them in your preferred IDE. The main goal is to streamline your development workflow by:
+
+- Providing a centralized place to find all your repositories (personal projects, forks, and cloned repositories)
+- Enabling fast searching with fuzzy matching to quickly locate the repository you need
+- Opening repositories directly in your preferred IDE with a single click
+- Managing multiple repository paths through an intuitive interface
+
+This tool is especially useful for developers who work with many different repositories and want to avoid navigating through the file system each time they need to switch projects.
+
 ## Requirements
 
 - Python 3.6+

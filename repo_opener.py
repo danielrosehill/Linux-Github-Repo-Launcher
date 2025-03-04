@@ -7,6 +7,8 @@ import os
 import sys
 import json
 import subprocess
+import time
+from datetime import datetime
 from pathlib import Path
 from functools import partial
 
@@ -14,7 +16,8 @@ try:
     from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                 QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                                 QListWidget, QListWidgetItem, QCheckBox, QGroupBox,
-                                QDialog, QFormLayout, QMessageBox, QFileDialog, QStyle)
+                                QDialog, QFormLayout, QMessageBox, QFileDialog, QStyle,
+                                QTabWidget)
     from PyQt6.QtCore import Qt, QSize, QRect
     from PyQt6.QtGui import QIcon, QColor
     PYQT_VERSION = 6
@@ -22,7 +25,8 @@ except ImportError:
     from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                 QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                                 QListWidget, QListWidgetItem, QCheckBox, QGroupBox,
-                                QDialog, QFormLayout, QMessageBox, QFileDialog, QStyle)
+                                QDialog, QFormLayout, QMessageBox, QFileDialog, QStyle,
+                                QTabWidget)
     from PyQt5.QtCore import Qt, QSize, QRect
     from PyQt5.QtGui import QIcon, QColor
     PYQT_VERSION = 5
@@ -124,6 +128,27 @@ class RepoOpener(QMainWindow):
                 background-color: white;
                 border-radius: 4px;
             }
+            QTabWidget::pane {
+                border: 1px solid #dcdcdc;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QTabBar::tab {
+                background-color: #f0f0f0;
+                border: 1px solid #dcdcdc;
+                border-bottom-color: #dcdcdc;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                min-width: 8ex;
+                padding: 6px 12px;
+            }
+            QTabBar::tab:selected {
+                background-color: white;
+                border-bottom-color: white;
+            }
+            QTabBar::tab:hover {
+                background-color: #e0e0e0;
+            }
         """)
 
     def init_ui(self):
@@ -131,18 +156,22 @@ class RepoOpener(QMainWindow):
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         
-        # Search bar
-        search_layout = QHBoxLayout()
-        search_label = QLabel("Search:")
-        self.search_input = QLineEdit()
-        self.search_input.setStyleSheet("padding: 5px; border: 1px solid #dcdcdc; border-radius: 4px;")
-        self.search_input.setPlaceholderText("Type to search repositories...")
-        self.search_input.textChanged.connect(self.filter_repositories)
-        search_layout.addWidget(search_label)
-        search_layout.addWidget(self.search_input)
-        main_layout.addLayout(search_layout)
+        # Create tab widget
+        self.tab_widget = QTabWidget()
         
-        # Repository source checkboxes
+        # Create Recent Repositories tab
+        self.recent_tab = QWidget()
+        recent_layout = QVBoxLayout(self.recent_tab)
+        
+        # Create Search Repositories tab
+        self.search_tab = QWidget()
+        search_layout = QVBoxLayout(self.search_tab)
+        
+        # Add tabs to tab widget
+        self.tab_widget.addTab(self.recent_tab, "Recent Repositories")
+        self.tab_widget.addTab(self.search_tab, "Search Repositories")
+        
+        # Repository source checkboxes - shared between tabs
         sources_group = QGroupBox("Repository Sources") 
         sources_group.setObjectName("RepositorySources")
         sources_layout = QHBoxLayout()
@@ -156,9 +185,8 @@ class RepoOpener(QMainWindow):
             self.source_checkboxes[source_name] = checkbox
         
         sources_group.setLayout(sources_layout)
-        main_layout.addWidget(sources_group)
         
-        # Path management buttons
+        # Path management buttons - shared between tabs
         path_buttons_layout = QHBoxLayout()
         
         self.add_path_button = QPushButton("Add Path")
@@ -171,23 +199,48 @@ class RepoOpener(QMainWindow):
         path_buttons_layout.addWidget(self.add_path_button)
         path_buttons_layout.addWidget(self.edit_path_button)
         path_buttons_layout.addWidget(self.remove_path_button)
+        
+        # Add shared components to main layout
+        main_layout.addWidget(sources_group)
         main_layout.addLayout(path_buttons_layout)
         
-        # Repository list
-        self.repo_list = QListWidget()
-        self.repo_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        self.repo_list.setSpacing(2)  # Add spacing between items
-        self.repo_list.setAlternatingRowColors(True)  # Alternating row colors for better readability
-        main_layout.addWidget(self.repo_list)
+        # Setup Recent Repositories tab
+        self.recent_repo_list = QListWidget()
+        self.recent_repo_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.recent_repo_list.setSpacing(2)
+        self.recent_repo_list.setAlternatingRowColors(True)
+        recent_layout.addWidget(self.recent_repo_list)
         
-        # Open buttons
+        # Setup Search Repositories tab
+        # Search bar
+        search_bar_layout = QHBoxLayout()
+        search_label = QLabel("Search:")
+        self.search_input = QLineEdit()
+        self.search_input.setStyleSheet("padding: 5px; border: 1px solid #dcdcdc; border-radius: 4px;")
+        self.search_input.setPlaceholderText("Type to search repositories...")
+        self.search_input.textChanged.connect(self.filter_repositories)
+        search_bar_layout.addWidget(search_label)
+        search_bar_layout.addWidget(self.search_input)
+        search_layout.addLayout(search_bar_layout)
+        
+        # Repository list for search tab
+        self.search_repo_list = QListWidget()
+        self.search_repo_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.search_repo_list.setSpacing(2)
+        self.search_repo_list.setAlternatingRowColors(True)
+        search_layout.addWidget(self.search_repo_list)
+        
+        # Add tab widget to main layout
+        main_layout.addWidget(self.tab_widget)
+        
+        # Open buttons - shared between tabs
         buttons_layout = QHBoxLayout()
         
         self.vscode_button = QPushButton("Open in VS Code")
-        self.vscode_button.clicked.connect(partial(self.open_selected_repo, "code"))
+        self.vscode_button.clicked.connect(self.open_selected_repo)
         
         self.windsurf_button = QPushButton("Open in Windsurf")
-        self.windsurf_button.clicked.connect(partial(self.open_selected_repo, "windsurf"))
+        self.windsurf_button.clicked.connect(self.open_selected_repo_windsurf)
         
         buttons_layout.addWidget(self.vscode_button)
         buttons_layout.addWidget(self.windsurf_button)
@@ -198,7 +251,8 @@ class RepoOpener(QMainWindow):
 
     def load_repositories(self):
         # Clear existing items
-        self.repo_list.clear()
+        self.recent_repo_list.clear()
+        self.search_repo_list.clear()
         self.all_repos = {}
         
         # Get selected sources from checkboxes
@@ -211,28 +265,48 @@ class RepoOpener(QMainWindow):
             if source_path.exists():
                 for item in source_path.iterdir():
                     if item.is_dir() and (item / ".git").exists():
+                        # Get repository creation time
+                        try:
+                            # Try to get the creation time from the .git directory
+                            git_dir = item / ".git"
+                            creation_time = git_dir.stat().st_mtime
+                        except Exception:
+                            # Fallback to directory creation time
+                            creation_time = item.stat().st_mtime
+                        
                         self.all_repos[item.name] = {
                             "name": item.name,
                             "path": str(item),
-                            "source": source_name
+                            "source": source_name,
+                            "creation_time": creation_time
                         }
         
-        # Add to list widget
+        # Add to search list widget (alphabetically sorted)
         for repo_name, repo_info in sorted(self.all_repos.items(), key=lambda x: x[0].lower()):
             item = CustomRepoListItem(repo_name, self.get_repo_type(repo_info['source']))
             item.setData(Qt.ItemDataRole.UserRole, repo_info)
-            self.repo_list.addItem(item)
+            self.search_repo_list.addItem(item)
+        
+        # Add to recent list widget (sorted by creation time, newest first)
+        for repo_name, repo_info in sorted(self.all_repos.items(), key=lambda x: x[1]['creation_time'], reverse=True):
+            item = CustomRepoListItem(repo_name, self.get_repo_type(repo_info['source']))
+            item.setData(Qt.ItemDataRole.UserRole, repo_info)
+            self.recent_repo_list.addItem(item)
 
     def filter_repositories(self):
         search_text = self.search_input.text().lower()
 
         if not search_text:
             # If search is empty, show all repositories
-            self.load_repositories()
+            self.search_repo_list.clear()
+            for repo_name, repo_info in sorted(self.all_repos.items(), key=lambda x: x[0].lower()):
+                item = CustomRepoListItem(repo_name, self.get_repo_type(repo_info['source']))
+                item.setData(Qt.ItemDataRole.UserRole, repo_info)
+                self.search_repo_list.addItem(item)
             return
 
         # Clear the list
-        self.repo_list.clear()
+        self.search_repo_list.clear()
 
         # Filter repositories using fuzzy matching
         matches = []
@@ -252,10 +326,16 @@ class RepoOpener(QMainWindow):
             for repo_name, repo_info in sorted(score_groups[score], key=lambda x: x[0].lower()):
                 item = CustomRepoListItem(repo_name, self.get_repo_type(repo_info['source']))
                 item.setData(Qt.ItemDataRole.UserRole, repo_info)
-                self.repo_list.addItem(item)
+                self.search_repo_list.addItem(item)
 
-    def open_selected_repo(self, command):
-        selected_items = self.repo_list.selectedItems()
+    def open_selected_repo(self):
+        # Determine which tab is active and get the appropriate list widget
+        current_tab_index = self.tab_widget.currentIndex()
+        if current_tab_index == 0:  # Recent Repositories tab
+            selected_items = self.recent_repo_list.selectedItems()
+        else:  # Search Repositories tab
+            selected_items = self.search_repo_list.selectedItems()
+        
         if not selected_items:
             return
         
@@ -263,9 +343,30 @@ class RepoOpener(QMainWindow):
         repo_info = selected_items[0].data(Qt.ItemDataRole.UserRole)
         repo_path = repo_info["path"]
         
-        # Open the repository with the specified command
+        # Open the repository with VS Code
         try:
-            subprocess.Popen([command, repo_path])
+            subprocess.Popen(["code", repo_path])
+        except Exception as e:
+            print(f"Error opening repository: {e}")
+    
+    def open_selected_repo_windsurf(self):
+        # Determine which tab is active and get the appropriate list widget
+        current_tab_index = self.tab_widget.currentIndex()
+        if current_tab_index == 0:  # Recent Repositories tab
+            selected_items = self.recent_repo_list.selectedItems()
+        else:  # Search Repositories tab
+            selected_items = self.search_repo_list.selectedItems()
+        
+        if not selected_items:
+            return
+        
+        # Get repository info
+        repo_info = selected_items[0].data(Qt.ItemDataRole.UserRole)
+        repo_path = repo_info["path"]
+        
+        # Open the repository with Windsurf
+        try:
+            subprocess.Popen(["windsurf", repo_path])
         except Exception as e:
             print(f"Error opening repository: {e}")
 
@@ -488,9 +589,9 @@ class CustomRepoListItem(QListWidgetItem):
         # Draw selection background if item is selected
         # Handle different state flags between PyQt5 and PyQt6
         if PYQT_VERSION == 6:
-            selected_state = QStyle.State_Selected
+            selected_state = QStyle.StateFlag.State_Selected
         else:
-            selected_state = QStyle.State_Selected
+            selected_state = QStyle.StateFlag.State_Selected
         if option.state & selected_state:
             painter.fillRect(rect, option.palette.highlight())
             painter.setPen(option.palette.highlightedText().color())
@@ -499,10 +600,10 @@ class CustomRepoListItem(QListWidgetItem):
         
         # Draw repository name (left-aligned)
         font = painter.font()
-        painter.drawText(rect.adjusted(10, 0, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, self.repo_name)
+        painter.drawText(rect.adjusted(10, 0, 0, 0), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.repo_name)
         
         # Draw repository type (right-aligned with padding)
-        painter.setPen(Qt.gray)
+        painter.setPen(Qt.GlobalColor.gray)
         # Use a colored background for the repository type
         type_rect = QRect(rect.right() - 70, rect.top() + 4, 60, rect.height() - 8)
         
@@ -519,7 +620,7 @@ class CustomRepoListItem(QListWidgetItem):
         painter.fillRect(type_rect, bg_color)
         painter.setPen(QColor("#666666"))
         painter.drawRect(type_rect)  # Draw border
-        painter.drawText(type_rect, Qt.AlignCenter, self.repo_type)
+        painter.drawText(type_rect, Qt.AlignmentFlag.AlignCenter, self.repo_type)
 
 
 class RepositoryPathDialog(QDialog):
