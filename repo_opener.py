@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Repo Opener - A GUI application to browse and open Git repositories
+GitHub Repo Opener - A GUI application to browse and open Git repositories
 """
 
 import os
@@ -51,7 +51,7 @@ CONFIG_DIR = Path.home() / ".config" / "repo-opener-0225"
 class RepoOpener(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Repository Opener")
+        self.setWindowTitle("GitHub Repo Opener")
         self.setMinimumSize(850, 600)
         
         # Initialize config directory and load settings
